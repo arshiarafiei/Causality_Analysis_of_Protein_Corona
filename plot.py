@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 df = pd.read_csv('result.csv')
 
 
-df['result'] = df['casue 1'].apply(lambda x: x.split(' with')[0])
+df['result'] = df['cause 1'].apply(lambda x: x.split(' with')[0])
 
 df1 = df.loc[:, ['high threshold', 'low threshold','result']]
 df = df1.copy()

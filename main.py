@@ -2,9 +2,8 @@ import numpy as np
 import pandas as pd
 
 
-
+#Function that manage the duplations in the Array
 def remove_duplicates_2d_array(array):
-    
     seen = set()
     unique_array = []
     for row in array:
@@ -13,83 +12,63 @@ def remove_duplicates_2d_array(array):
             seen.add(row_tuple)
             unique_array.append(row)
     return unique_array
-
+#Function that sort based on Probabilities 
 def sort_2d_array_by_second_element(array):
     return sorted(array, key=lambda x: x[1], reverse=True)
 
-
-prot = [
-    ("P02768", "Albumin [OS=Homo sapiens]"),
-    ("P0DOX5", "Immunoglobulin gamma-1 heavy chain [OS=Homo sapiens]"),
-    ("P0DOX2", "Immunoglobulin alpha-2 heavy chain [OS=Homo sapiens]"),
-    ("P0DOX6", "Immunoglobulin mu heavy chain [OS=Homo sapiens]"),
-    ("P02675", "Fibrinogen beta chain [OS=Homo sapiens]"),
-    ("P01009", "Alpha-1-antitrypsin [OS=Homo sapiens]"),
-    ("P01023", "Alpha-2-macroglobulin [OS=Homo sapiens]"),
-    ("P00738", "Haptoglobin [OS=Homo sapiens]"),
-    ("P02786", "Transferrin receptor protein 1 [OS=Homo sapiens]"),
-    ("P02647", "Apolipoprotein A-I [OS=Homo sapiens]"),
-    ("P02652", "Apolipoprotein A-II [OS=Homo sapiens]"),
-    ("P04114", "Apolipoprotein B-100 [OS=Homo sapiens]"),
-    ("P01024", "Complement C3 [OS=Homo sapiens]"),
-    ("P0C0L4", "Complement C4-A [OS=Homo sapiens]"),
-    ("P00450", "Ceruloplasmin [OS=Homo sapiens]"),
-    ("P02766", "Transthyretin [OS=Homo sapiens]"),
-    ("P02763", "Alpha-1-acid glycoprotein 1 [OS=Homo sapiens]"),
-    ("P00747", "Plasminogen [OS=Homo sapiens]"),
-    ("P01011", "Alpha-1-antichymotrypsin [OS=Homo sapiens]"),
-    ("P06396", "Gelsolin [OS=Homo sapiens]"),
-    ("P69905", "Hemoglobin subunit alpha [OS=Homo sapiens]"),
-    ("P08519", "Apolipoprotein(a) [OS=Homo sapiens]"),
-    ("P02679", "Fibrinogen gamma chain [OS=Homo sapiens]")
+#Highly abundant proteins's IDs
+prot= [
+    "P02768", "P02787", "P00738", "P01876-1", "P02671", "P02675", "P01024", 
+    "P02679", "P02647", "P02790", "P02652", "P02774", "P01023", "P01860", 
+    "P02765", "P08603", "P01871-1", "P00450", "P00751", "P01857-1", 
+    "P01042-2", "P0DOX7", "P02763", "P00747", "P04217"
 ]
 
-tab = []
 
+
+tab = list()
+
+#Loading Data
 data = pd.read_csv('Supp_Data.csv')
 
+#Finding Min and Max vallues of the Log2FC
 f = data['Log2FC']
 mini = round(min(f))*10
 maxi = round(max(f))*10
 
+# z and j are the theresholds 
 for z in range(1,maxi,5):
     for j in range(mini,1,5):
         temp_i = z/10
         temp_j = j/10
-        data['result'] = data.apply(lambda row: 1 if ((row['Accession'], row['description']) in prot and row['Log2FC']) <= temp_j or ((row['Accession'], row['description']) not in prot and row['Log2FC']) >= temp_i else 0, axis=1)
+        #defining effect based on the new theresholds
+        data['result'] = data.apply(lambda row: 1 if ((row['Accession']) in prot and row['Log2FC']) <= temp_j or ((row['Accession']) not in prot and row['Log2FC']) >= temp_i else 0, axis=1)
         df2 = data.loc[:, ['description', 'Group','concentration','result']]
         df = df2.copy()
 
-        df2 = df[df['result'] == 1]
         col = df.columns
         cause = []
-        for index, row in df2.iterrows():
-            for i in range(len(row)-1):
-                if i == 1:
-                    df3 = df[(df[col[0]] == row[0]) & (df[col[1]] != row[1]) & (df[col[2]] == row[2]) & (df[col[3]] == 1)]
-                    df4 = df[(df[col[0]] == row[0]) & (df[col[1]] != row[1]) & (df[col[2]] == row[2]) &(df[col[3]] == 0)]
-                    counteractual = df[(df[col[1]] == row[1]) & (df[col[3]] == 0)]
-                    factual = df[(df[col[1]] == row[1]) & (df[col[3]] == 1)]
-                    all = df[df[col[1]] == row[1]]
 
-                    if len(df3)+len(df4) == 0:
-                        continue
-                    else:
-                        if len(df3)/(len(df3)+len(df4)) ==1:
-                            # print(row[1])
-                            # print(actual)
-                            continue
-                        else:
-                            cause.append([row[i],len(factual)/len(all)])
-                else:
-                    continue
+        #Causal Analysis
+        for index, row in df.iterrows():
+            # Calculating the actual world
+            factual = df[(df[col[0]] == row[0]) & (df[col[1]] == row[1]) & (df[col[2]] == row[2]) & (df[col[3]] == 1)]
+            # Calculating the counterfactual world
+            counteractual = df[(df[col[0]] == row[0]) & (df[col[1]] != row[1]) & (df[col[2]] == row[2]) &(df[col[3]] == 1)]
+            actual = df[(df[col[1]] == row[1]) & (df[col[3]] == 1)]
+            all_times = df[df[col[1]] == row[1]]
+            #checking whether probability of happening the actual world is greater than counterfactual world (counterfactual reasoning)
+            if len(factual)> len(counteractual):
+                #adding the possible cause and probability of it
+                cause.append([row[1],len(actual)/len(all_times)])
+        #removinf duplicates
         uni = remove_duplicates_2d_array(cause)
-
+        #sort
         uni_sorted = sort_2d_array_by_second_element(uni)
 
+        #Extarct top Three highest probability
         if len(uni_sorted)>= 3 :
             l = uni_sorted[:3]
-
             tab.append([temp_i,temp_j,l[0],l[1],l[2]])
         elif len(uni_sorted)== 2:
             tab.append([temp_i,temp_j,uni_sorted[0],uni_sorted[1],None])
@@ -98,9 +77,9 @@ for z in range(1,maxi,5):
         else:
             break
 
-fin_tab = []
+fin_tab = list()
 for i in tab:
-    st = []
+    st = lsi()
     for z in range(2,5):
         if i[z]==None:
             st.append('None')
@@ -110,6 +89,8 @@ for i in tab:
 
     fin_tab.append([i[0],i[1],st[0],st[1],st[2]])
 
-df = pd.DataFrame(fin_tab, columns=['high threshold', 'low threshold', 'casue 1', 'cause 2', 'cause 3'])
+df = pd.DataFrame(fin_tab, columns=['high threshold', 'low threshold', 'cause 1', 'cause 2', 'cause 3'])
 
 df.to_csv('result.csv',index=False)
+
+
